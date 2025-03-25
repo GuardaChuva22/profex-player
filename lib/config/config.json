@@ -1,0 +1,13 @@
+{
+    "terminate": "ctrl+alt+q",
+    "play": "ctrl+alt+p",
+    "pause": "ctrl+alt+space",
+    "resume": "ctrl+alt+r",
+    "skip": "ctrl+alt+s",
+    "stop": "ctrl+alt+enter",
+    "volume_up": "ctrl+alt+up",
+    "volume_down": "ctrl+alt+down",
+    "skip_forward": "ctrl+alt+right",
+    "skip_backward": "ctrl+alt+left",
+    "silent_mode": false
+}
