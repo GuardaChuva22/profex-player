@@ -91,7 +91,7 @@ class PlaylistManager:
 def play_error_sound():
     """Play an error sound when an invalid command is entered."""
     try:
-        error_sound_path = "error.mp3"
+        error_sound_path = os.path.join("lib", "sounds", "error.mp3")  # Updated path
         if os.path.exists(error_sound_path):
             error_player = vlc.MediaPlayer(error_sound_path)
             error_player.play()
@@ -102,7 +102,7 @@ def play_error_sound():
 
 def create_tray_image():
     # Load your custom icon (supports PNG, ICO, etc.)
-    icon_path = 'icon.ico'
+    icon_path = os.path.join("lib", "icons", "icon.ico")  # Updated path
     if os.path.exists(icon_path):
         try:
             image = Image.open(icon_path)
@@ -159,11 +159,24 @@ def load_config():
         "skip_forward": "ctrl+alt+right",
         "skip_backward": "ctrl+alt+left"
     }
+    
+    config_path = os.path.join("lib", "config", "config.json")
+    
     try:
-        with open("config.json", "r") as f:
-            config = json.load(f)
-        # Merge user config with defaults (user settings take precedence)
-        return {**config_defaults, **config}
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        
+        # Check if config file exists
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            # Merge user config with defaults (user settings take precedence)
+            return {**config_defaults, **config}
+        else:
+            # Create default config file if it doesn't exist
+            with open(config_path, "w") as f:
+                json.dump(config_defaults, f, indent=4)
+            return config_defaults
     except Exception as e:
         logging.warning(f"Config file error: {e}. Using default keybinds.")
         return config_defaults
@@ -414,7 +427,8 @@ root = tk.Tk()
 root.title(WINDOW_TITLE)
 root.resizable(False, False)
 try:
-    root.iconbitmap('icon.ico')  # For Windows icon
+    icon_path = os.path.join("lib", "icons", "icon.ico")  # Updated path
+    root.iconbitmap(icon_path)  # For Windows icon
 except Exception as e:
     logging.error(f"Error setting window icon: {e}")
 root.geometry("200x30")  # Small window for the input field only
