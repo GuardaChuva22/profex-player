@@ -34,6 +34,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 WINDOW_TITLE = "Windows Defender"
 TRAY_ICON_NAME = "Windows Defender Terminal"
 IDLE_TIMEOUT = 120  # seconds idle before termination
+DEFAULT_VOLUME = 50  # Default volume if not specified in config
 # /////////////////////////////////////////////////////////////////////////////
 
 def is_spotify_url(url):
@@ -65,6 +66,7 @@ class PlaylistManager:
         self.playlist = []
         self.lock = threading.Lock()
         self.current_song = None
+        self.loop_queue = False  # New: Loop toggle
 
     def add_song(self, url):
         with self.lock:
@@ -72,12 +74,20 @@ class PlaylistManager:
 
     def get_next_song(self):
         with self.lock:
-            if self.playlist:
-                self.current_song = self.playlist.pop(0)
-                return self.current_song
-            else:
-                self.current_song = None
+            if not self.playlist:
                 return None
+
+            if self.loop_queue and self.current_song:
+                # If looping, re-add the current song to the end
+                self.playlist.append(self.current_song)
+
+            self.current_song = self.playlist.pop(0)
+            return self.current_song
+
+    def toggle_loop(self):
+        with self.lock:
+            self.loop_queue = not self.loop_queue
+            return self.loop_queue  # Return new state for feedback
 
     def clear(self):
         with self.lock:
@@ -157,28 +167,45 @@ def load_config():
         "volume_up": "ctrl+alt+up",
         "volume_down": "ctrl+alt+down",
         "skip_forward": "ctrl+alt+right",
-        "skip_backward": "ctrl+alt+left"
+        "skip_backward": "ctrl+alt+left",
+        "default_volume": DEFAULT_VOLUME,
+        "idle_timeout": IDLE_TIMEOUT
     }
     
     config_path = os.path.join("lib", "config", "config.json")
     
     try:
-        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(config_path), exist_ok=True)
         
-        # Check if config file exists
         if os.path.exists(config_path):
             with open(config_path, "r") as f:
                 config = json.load(f)
-            # Merge user config with defaults (user settings take precedence)
-            return {**config_defaults, **config}
+            
+            merged_config = {**config_defaults, **config}
+            
+            # Handle default_volume
+            if "default_volume" in merged_config:
+                try:
+                    vol = float(merged_config["default_volume"])
+                    merged_config["default_volume"] = max(0, min(100, round(vol)))
+                except (ValueError, TypeError):
+                    merged_config["default_volume"] = DEFAULT_VOLUME
+            
+            # Handle idle_timeout
+            if "idle_timeout" in merged_config:
+                try:
+                    timeout = float(merged_config["idle_timeout"])
+                    merged_config["idle_timeout"] = max(5, timeout)  # Minimum 5 seconds
+                except (ValueError, TypeError):
+                    merged_config["idle_timeout"] = IDLE_TIMEOUT
+            
+            return merged_config
         else:
-            # Create default config file if it doesn't exist
             with open(config_path, "w") as f:
                 json.dump(config_defaults, f, indent=4)
             return config_defaults
     except Exception as e:
-        logging.warning(f"Config file error: {e}. Using default keybinds.")
+        logging.warning(f"Config file error: {e}. Using default settings.")
         return config_defaults
 
 def get_stream_url(query):
@@ -219,6 +246,9 @@ def get_stream_url(query):
 def playback_loop(playlist_manager):
     """Continuously play songs from the playlist in a single thread."""
     global player, last_music_time
+    config = load_config()
+    default_volume = config.get("default_volume", DEFAULT_VOLUME)
+    
     while True:
         try:
             current_song = playlist_manager.get_next_song()
@@ -226,6 +256,8 @@ def playback_loop(playlist_manager):
                 logging.info(f"Playing song: {current_song}")
                 player = vlc.MediaPlayer(current_song)
                 if player:  # Ensure player is initialized
+                    # Set default volume when starting a new song
+                    player.audio_set_volume(default_volume)
                     player.play()
                     # Reset idle timer when a song starts
                     last_music_time = time.time()
@@ -333,6 +365,9 @@ def handle_command(command, playlist_manager):
     elif command.startswith("volume "):
         volume_level = command[7:].strip()
         set_volume(volume_level)
+    elif command == "loop":
+        loop_state = playlist_manager.toggle_loop()
+        print(f"Loop queue: {'ON' if loop_state else 'OFF'}")
     elif command == "clear":
         playlist_manager.clear()
     elif command == "skip":
@@ -358,6 +393,7 @@ def terminate_program():
 def listen_for_hotkeys(playlist_manager):
     """Listen for global hotkeys."""
     keybinds = load_config()
+    keyboard.add_hotkey(keybinds["loop"], lambda: playlist_manager.toggle_loop())
     keyboard.add_hotkey(keybinds["terminate"], terminate_program)
     keyboard.add_hotkey(keybinds["play"], lambda: play_stream(["your_default_song_url_here"], playlist_manager))
     keyboard.add_hotkey(keybinds["pause"], pause_song)
@@ -383,18 +419,23 @@ player = None
 last_music_time = time.time()  # Initialize last_music_time
 
 def idle_monitor():
-    """
-    Terminates the app if no music has been playing for a set timeout.
-    Checks the time elapsed since the last active playback.
-    """
+    """Terminates the app if no music has been playing for the configured timeout.
+    Disables completely if idle_timeout is set to 0 in config."""
     global last_music_time, player
+    config = load_config()
+    timeout = config.get("idle_timeout", IDLE_TIMEOUT)
+    
+    # If timeout is 0, disable the idle monitor completely
+    if timeout == 0:
+        logging.info("Idle timeout disabled (set to 0 in config)")
+        return  # Exit the function, stopping the monitoring
+    
     while True:
         try:
-            # Check if player is initialized and playing
             if player is not None and player.get_state() == vlc.State.Playing:
                 last_music_time = time.time()
-            elif time.time() - last_music_time > IDLE_TIMEOUT:  
-                logging.info("Idle timeout reached. Terminating app.")
+            elif time.time() - last_music_time > timeout:  
+                logging.info(f"Idle timeout ({timeout}s) reached. Terminating app.")
                 terminate_program()
         except Exception as e:
             logging.error(f"Error in idle monitor: {e}")
