@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 # Configuration
-CURRENT_VERSION = "1.0.0"  # Must match your app's current version
+CURRENT_VERSION = "1.2.0"  # Must match your app's current version
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/GuardaChuva22/profex-player/main/version.json"
 MAIN_SCRIPT = "main.py"  # Your main application file
 
