@@ -1,5 +1,6 @@
 {
-    "terminate": "tab+q",
+    "terminate": "ctrl+shift+q",
+    "play": "ctrl+alt+p",
     "pause": "ctrl+alt+space",
     "resume": "ctrl+alt+r",
     "skip": "ctrl+alt+s",
@@ -8,8 +9,9 @@
     "volume_down": "ctrl+alt+down",
     "skip_forward": "ctrl+alt+right",
     "skip_backward": "ctrl+alt+left",
-    "loop": "ctrl+alt+l",
-    
+    "loop_toggle": "ctrl+alt+l",
     "default_volume": 50,
-    "idle_timeout": 120
+    "idle_timeout": 120,
+    "CLIENT_ID": "YOUR_CLIENT_ID_HERE",
+    "CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE"
 }
